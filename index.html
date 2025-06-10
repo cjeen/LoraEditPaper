@@ -1,0 +1,2852 @@
+<!DOCTYPE html>
+<html>
+
+<meta http-equiv="content-type" content="text/html;charset=utf-8" />
+<head>
+    <meta charset="utf-8">
+    <meta name="description" content="LoRA-Edit: Controllable First-Frame-Guided Video Editing via Mask-Aware LoRA Fine-Tuning.">
+    <meta name="keywords" content="Video Editing, Image-to-Video Model, LoRA, Fine-Tuning">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>LoRA-Edit: Controllable First-Frame-Guided Video Editing via Mask-Aware LoRA Fine-Tuning</title>
+
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-1Z9DR6XZBR"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      gtag('config', 'G-1Z9DR6XZBR');
+    </script>
+  
+    <link href="https://fonts.googleapis.com/css?family=Google+Sans|Noto+Sans|Castoro" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.3/css/bulma.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma-carousel@4.0.4/dist/css/bulma-carousel.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css">
+    <link rel="stylesheet" href="static/css/index.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/js/all.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/assets/owl.carousel.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/assets/owl.theme.default.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/owl.carousel.min.js"></script>
+  
+    <script>
+      $(document).ready(function(){
+        function initializeCarousel(carouselId, indicatorId, autoplayTimeout) {
+          var totalItems = $(carouselId + ' .item').length;
+          var $indicator = $(indicatorId);
+          var playCount = 0;
+          var timesCycled = 0;
+          
+          var owl = $(carouselId).owlCarousel({
+            items: 1,
+            loop: true,
+            margin: 10,
+            nav: true,
+            autoplay: true,
+            autoplayTimeout: autoplayTimeout,
+            autoplayHoverPause: false,
+            navText: [
+              "<div class='nav-button owl-prev' style='font-size: 6rem;'>‹</div>",
+              "<div class='nav-button owl-next' style='font-size: 6rem;'>›</div>"
+            ],
+            responsive: {
+              0: { items: 1, nav: true, loop: true  },
+              600: { items: 1, nav: true, loop: true  },
+              1000: { items: 1, nav: true, loop: true }
+            },
+            onInitialized: updateIndicator,
+            onTranslated: function(event) {
+              updateIndicator(event);
+              playCount++;
+              if (playCount >= totalItems) {
+                playCount = 0;
+                timesCycled++;
+                if (timesCycled >= 3) {
+                  $(carouselId).trigger('stop.owl.autoplay');
+                }
+              }
+            }
+          });
+  
+          // Add event listeners to navigation buttons to reset autoplay
+          $(carouselId).on('click', '.owl-prev, .owl-next', function() {
+            owl.trigger('stop.owl.autoplay');
+            owl.trigger('play.owl.autoplay', [autoplayTimeout]);
+          });
+  
+          function updateIndicator(event) {
+            var currentIndex = event.item.index - event.relatedTarget._clones.length / 2 + 1;
+            if (currentIndex > totalItems) {
+              currentIndex = currentIndex - totalItems;
+            }
+            $indicator.text(currentIndex + '/' + totalItems);
+          }
+        }
+
+                // Initialize video comparison
+        function initVideoComparison() {
+          // 检查元素是否存在，如果不存在就退出
+          var container = document.getElementById("video-compare-container");
+          if (!container) {
+            return;
+          }
+          
+          var v = document.getElementById("result-video");   // result视频
+          var v2 = document.getElementById("input-video"); // input视频
+          var videoClipper = document.getElementById("video-clipper");
+
+          if (!v || !v2 || !videoClipper) {
+            return;
+          }
+
+          var clippedVideo = videoClipper.getElementsByTagName("video")[0];
+          if (!clippedVideo) return;
+
+          // 视频数据
+          var videoData = [
+            { 
+              input: "static/videos/results/001.mp4", 
+              result: "static/videos/input/001.mp4",
+              firstFrame: "static/videos/first_frames/001_f1.png",
+              editedFrame: "static/videos/input/001_e1.png"
+            },
+            { 
+              input: "static/videos/results/003.mp4", 
+              result: "static/videos/input/003.mp4",
+              firstFrame: "static/videos/first_frames/003_f1.png",
+              editedFrame: "static/videos/input/003_e1.png"
+            },
+            { 
+              input: "static/videos/results/004.mp4", 
+              result: "static/videos/input/004.mp4",
+              firstFrame: "static/videos/first_frames/004_f1.png",
+              editedFrame: "static/videos/input/004_e1.png"
+            },
+            { 
+              input: "static/videos/results/005.mp4", 
+              result: "static/videos/input/005.mp4",
+              firstFrame: "static/videos/first_frames/005_f1.png",
+              editedFrame: "static/videos/input/005_e1.png"
+            },
+            { 
+              input: "static/videos/results/007.mp4", 
+              result: "static/videos/input/007.mp4",
+              firstFrame: "static/videos/first_frames/007_f1.png",
+              editedFrame: "static/videos/input/007_e1.png"
+            },
+            { 
+              input: "static/videos/results/008.mp4", 
+              result: "static/videos/input/008.mp4",
+              firstFrame: "static/videos/first_frames/008_f1.png",
+              editedFrame: "static/videos/input/008_e1.png"
+            },
+            { 
+              input: "static/videos/results/017.mp4", 
+              result: "static/videos/input/017.mp4",
+              firstFrame: "static/videos/first_frames/017_f1.png",
+              editedFrame: "static/videos/input/017_e1.png"
+            },
+            { 
+              input: "static/videos/results/021.mp4", 
+              result: "static/videos/input/021.mp4",
+              firstFrame: "static/videos/first_frames/021_f1.png",
+              editedFrame: "static/videos/input/021_e1.png"
+            },
+            { 
+              input: "static/videos/results/031.mp4", 
+              result: "static/videos/input/031.mp4",
+              firstFrame: "static/videos/first_frames/031_f1.png",
+              editedFrame: "static/videos/input/031_e1.png"
+            },
+            { 
+              input: "static/videos/results/032.mp4", 
+              result: "static/videos/input/032.mp4",
+              firstFrame: "static/videos/first_frames/032_f1.png",
+              editedFrame: "static/videos/input/032_e1.png"
+            }
+          ];
+          
+          var currentVideoIndex = 0;
+          
+          // 更新视频源
+          function updateVideoSources() {
+            var currentData = videoData[currentVideoIndex];
+            v2.src = currentData.input;
+            v.src = currentData.result;
+            
+            // 更新first frame图片
+            var firstFrameImg = document.getElementById('first-frame-img');
+            if (firstFrameImg) {
+              firstFrameImg.src = currentData.firstFrame;
+            }
+            
+            // 更新edited first frame图片
+            var editedFrameImg = document.getElementById('edited-frame-img');
+            if (editedFrameImg) {
+              editedFrameImg.src = currentData.editedFrame;
+            }
+            
+            // 更新指示器
+            document.getElementById('video-indicator').textContent = (currentVideoIndex + 1) + '/' + videoData.length;
+            
+            // 重新加载视频
+            v2.load();
+            v.load();
+            
+            // 重置播放状态
+            setTimeout(function() {
+              v2.currentTime = 0;
+              v.currentTime = 0;
+            }, 100);
+          }
+          
+          // 切换到上一个视频
+          function prevVideo() {
+            currentVideoIndex = (currentVideoIndex - 1 + videoData.length) % videoData.length;
+            updateVideoSources();
+          }
+          
+          // 切换到下一个视频
+          function nextVideo() {
+            currentVideoIndex = (currentVideoIndex + 1) % videoData.length;
+            updateVideoSources();
+          }
+          
+          // 绑定按钮事件
+          document.getElementById('prev-video').addEventListener('click', prevVideo);
+          document.getElementById('next-video').addEventListener('click', nextVideo);
+          
+          function video_click() {
+            if (v.paused){
+             v.play();
+             v2.play(); 
+            }
+            else{
+              v.pause();
+              v2.pause();
+            }
+            // 确保时间同步
+            v.currentTime = v2.currentTime;
+            v2.currentTime = v.currentTime;
+          }
+
+            function trackLocation(e) {
+            var rect = container.getBoundingClientRect();
+            var position = ((e.pageX - rect.left) / container.offsetWidth) * 100;
+            
+            if (position <= 100) {
+              // 只调整clipper的宽度，视频位置保持固定
+              videoClipper.style.width = position + "%";
+              
+              // 更新滑动条位置
+              updateSliderPosition(position);
+              
+              // 根据位置控制标签显示/隐藏
+              updateLabelsVisibility(position);
+            }
+          }
+          
+          function updateLabelsVisibility(position) {
+            var sourceLabel = document.getElementById('source-video-label');
+            var resultLabel = document.getElementById('result-video-label');
+            
+            if (sourceLabel && resultLabel) {
+              // 当滑动条在最左边（0-25%）时，隐藏Source Video标签
+              if (position <= 25) {
+                sourceLabel.style.opacity = '0';
+              } else {
+                sourceLabel.style.opacity = '1';
+              }
+              
+              // 当滑动条在最右边（75-100%）时，隐藏Result标签
+              if (position >= 75) {
+                resultLabel.style.opacity = '0';
+          } else {
+                resultLabel.style.opacity = '1';
+              }
+            }
+          }
+          
+          function updateSliderPosition(position) {
+            var sliderLine = container.querySelector('[style*="z-index: 10"]');
+            var sliderHandle = container.querySelector('[style*="z-index: 11"]');
+            
+            if (sliderLine) {
+              sliderLine.style.left = position + '%';
+            }
+            if (sliderHandle) {
+              sliderHandle.style.left = position + '%';
+            }
+          }
+          
+          container.addEventListener("mousemove", trackLocation, false);
+          container.addEventListener("touchstart", trackLocation, false);
+          container.addEventListener("touchmove", trackLocation, false);
+
+          // 添加点击事件
+          v.onclick = video_click;
+          v2.onclick = video_click;
+          
+          // 添加同步事件监听器
+            function syncVideos() {
+            // 当input视频时间改变时，同步result视频
+            v.addEventListener('timeupdate', function() {
+              if (Math.abs(v.currentTime - v2.currentTime) > 0.1) {
+                v2.currentTime = v.currentTime;
+              }
+            });
+            
+            // 当result视频时间改变时，同步input视频
+            v2.addEventListener('timeupdate', function() {
+              if (Math.abs(v2.currentTime - v.currentTime) > 0.1) {
+                v.currentTime = v2.currentTime;
+              }
+            });
+            
+            // 播放状态同步
+            v.addEventListener('play', function() {
+              if (v2.paused) v2.play();
+            });
+            
+            v2.addEventListener('play', function() {
+              if (v.paused) v.play();
+            });
+            
+            v.addEventListener('pause', function() {
+              if (!v2.paused) v2.pause();
+            });
+            
+            v2.addEventListener('pause', function() {
+              if (!v.paused) v.pause();
+            });
+            
+            // 加载完成后同步到开始时间
+            v.addEventListener('loadeddata', function() {
+              v.currentTime = 0;
+              v2.currentTime = 0;
+            });
+            
+            v2.addEventListener('loadeddata', function() {
+              v.currentTime = 0;
+              v2.currentTime = 0;
+            });
+          }
+          
+          // 调用同步函数
+          syncVideos();
+          
+          // 设置初始滑动条位置和调试信息
+          setTimeout(function() {
+            updateSliderPosition(50); // 初始50%位置
+            updateLabelsVisibility(50); // 初始化标签显示状态
+            
+            // 初始化时强制设置视频尺寸
+            var containerWidth = container.offsetWidth;
+            // result视频和input视频保持相同大小，不拉伸
+            clippedVideo.style.width = containerWidth + "px"; // 和容器相同宽度
+            clippedVideo.style.minWidth = containerWidth + "px";
+            clippedVideo.style.maxWidth = containerWidth + "px";
+            clippedVideo.style.height = "100%";
+            clippedVideo.style.objectFit = "fill";
+            clippedVideo.style.position = "absolute";
+            clippedVideo.style.left = "0px !important"; // 强制固定位置
+            clippedVideo.style.top = "0px";
+            
+            videoClipper.style.overflow = "hidden";
+            videoClipper.style.position = "absolute";
+            
+            // 初始化视频指示器
+            document.getElementById('video-indicator').textContent = '1/' + videoData.length;
+          }, 100);
+          
+          // 自动播放
+          setTimeout(function() {
+            // 先暂停并重置时间
+            v.pause();
+            v2.pause();
+            v.currentTime = 0;
+            v2.currentTime = 0;
+            
+            // 等待一小段时间后同步播放
+            setTimeout(function() {
+              Promise.all([
+                v.play().catch(e => {}),
+                v2.play().catch(e => {})
+              ]).then(() => {
+                // 再次确保时间同步
+                v.currentTime = 0;
+                v2.currentTime = 0;
+              });
+            }, 100);
+          }, 500);
+        }
+  
+        initializeCarousel('#carousel-ref-comp', '#carousel-indicator-ref-comp', 10000);
+        initializeCarousel('#carousel-first-comp', '#carousel-indicator-first-comp', 10000);
+        initializeCarousel('#carousel-add-ref', '#carousel-indicator-add-ref', 12000);
+        
+        // Initialize video comparison immediately
+        initVideoComparison();
+      });
+    </script>
+    
+    <style>
+      /* 重要的布局重置 */
+      * {
+        box-sizing: border-box;
+      }
+      
+      .section {
+        float: none !important;
+        clear: both !important;
+      }
+      
+      .nav-button {
+        color: #333;
+        background-color: rgba(255, 255, 255, 0.7);
+        border-radius: 50%;
+        padding: 0.5rem;
+        margin: 0 1rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .owl-prev, .owl-next {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: 1000;
+      }
+      .owl-prev { left: -2rem; }
+      .owl-next { right: -2rem; }
+      .owl-carousel .owl-item { display: flex; 
+          justify-content: center; 
+          align-items: center;
+          margin-bottom: 0; 
+          padding-bottom: 0; 
+          min-height: 500px;
+      }
+      
+      .owl-carousel .item {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+      }
+      
+      .owl-carousel .item .columns {
+        margin: 0;
+      }
+      
+      /* 确保轮播容器有统一高度并居中对齐 */
+      #carousel-first-comp {
+        min-height: 600px;
+        padding: 15px 10px 10px 10px !important; /* 顶部和左右添加间距，避免阴影被截断 */
+      }
+      
+      #carousel-first-comp .owl-stage-outer {
+        width: 100%;
+      }
+      
+      #carousel-first-comp .owl-stage {
+        width: 100%;
+      }
+
+      #carousel-first-comp .item {
+        width: 100%;
+        display: block;
+      }
+
+      /* 为first-comp轮播中的所有视频设置统一最大高度和样式 */
+      #carousel-first-comp video {
+        max-width: 100% !important;
+        max-height: 200px !important;
+        width: auto !important;
+        height: auto !important;
+        object-fit: contain !important;
+        border-radius: 10px !important;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2) !important;
+      }
+      
+      /* 覆盖上面的通用规则，专门针对四个方法视频 */
+      #carousel-first-comp .columns .column video {
+        max-width: none !important;
+        max-height: none !important;
+        width: 100% !important;
+        height: 100% !important;
+        object-fit: cover !important;
+        object-position: center bottom !important; /* 只裁剪顶部，保留底部 */
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        border-radius: 15px !important;
+        box-shadow: none !important;
+      }
+
+      /* 新增：专门针对四个方法视频的容器和样式优化 */
+      #carousel-first-comp .columns .column > div {
+        position: relative !important;
+        width: 100% !important;
+        height: 0 !important;
+        padding-bottom: 56% !important; /* 调整为更紧凑的比例 */
+        overflow: hidden !important;
+        border-radius: 15px !important;
+        box-shadow: 0 6px 15px rgba(0,0,0,0.2) !important;
+      }
+
+      /* 调整first-comp轮播的列间距 */
+      #carousel-first-comp .columns.is-multiline {
+        margin-left: -0.5rem !important;
+        margin-right: -0.5rem !important;
+      }
+
+      #carousel-first-comp .column {
+        padding-left: 0.5rem !important;
+        padding-right: 0.5rem !important;
+      }
+
+      /* Additional Reference Enhancement轮播样式 */
+      #carousel-add-ref {
+        min-height: 500px;
+        padding: 15px 10px 10px 10px !important;
+      }
+      
+      #carousel-add-ref .owl-stage-outer {
+        width: 100%;
+      }
+      
+      #carousel-add-ref .owl-stage {
+        width: 100%;
+      }
+
+      #carousel-add-ref .item {
+        width: 100%;
+        display: block;
+      }
+
+      /* 为add-ref轮播添加悬停效果 */
+      #carousel-add-ref video:hover,
+      #carousel-add-ref img:hover {
+        transform: translateY(-2px);
+        transition: transform 0.3s ease;
+      }
+
+      /* Section background colors */
+      .section-white { background-color: #ffffff; }
+      .section-light-gray { background-color: #f8f9fa; }
+      .section-light-blue { background-color: #f0f8ff; }
+      .section-light-green { background-color: #f0fff0; }
+
+      /* Video with progress bar */
+      .video-container {
+        position: relative;
+        width: 100%;
+        margin: 2rem 0;
+      }
+
+      .video-container video {
+        width: 100%;
+        height: auto;
+        border-radius: 10px;
+      }
+
+      /* Video Comparison Styles */
+      #video-compare-container {
+        display: inline-block;
+        line-height: 0;
+        position: relative;
+        width: 100%;
+        max-width: none;
+        padding-top: 57.69%;
+        margin: 0 auto;
+        overflow: hidden;
+        border-radius: 10px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        cursor: pointer;
+        box-sizing: border-box;
+      }
+
+      #video-compare-container > video {
+        width: 100%;
+        position: absolute;
+        top: 0;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      #video-clipper {
+        width: 50%;
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        overflow: hidden !important;
+        z-index: 2;
+        box-sizing: border-box;
+      }
+
+      #video-clipper video {
+        /* 不设置width，让JavaScript设置绝对像素宽度 */
+        position: absolute !important;
+        top: 0;
+        left: 0;
+        height: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-sizing: border-box;
+        z-index: 2;
+        object-fit: fill !important;
+      }
+
+      /* 确保两个comparison section分开布局 */
+      .title.is-4 {
+        display: block;
+        width: 100%;
+        clear: both;
+        margin-top: 2rem;
+        margin-bottom: 1rem;
+      }
+
+      /* 修复轮播容器的布局 */
+      .owl-carousel {
+        display: block;
+        width: 100%;
+      }
+
+      .owl-carousel .owl-stage-outer {
+        position: relative;
+        overflow: hidden;
+        width: 100%;
+      }
+
+      .owl-carousel .owl-stage {
+        position: relative;
+        width: 100%;
+      }
+
+      /* 确保section正常堆叠布局 */
+      .section {
+        display: block;
+        width: 100%;
+        clear: both;
+      }
+
+      .container.is-max-desktop {
+        display: block;
+        width: 100%;
+      }
+
+      /* 专门针对comparison部分的修复 */
+      .section .columns.is-centered {
+        display: block;
+        width: 100%;
+      }
+
+      .section .column.is-full {
+        display: block;
+        width: 100%;
+      }
+
+      /* 专门修复comparison section的间距和布局 */
+      .section-light-gray {
+        position: relative;
+        z-index: 1;
+      }
+      
+      .section-light-gray h3.title.is-4 {
+        margin-top: 3rem;
+        margin-bottom: 1.5rem;
+        display: block;
+        width: 100%;
+      }
+      
+      .section-light-gray .container {
+        position: relative;
+        z-index: 2;
+      }
+
+      /* 确保br标签正常工作 */
+      br {
+        display: block;
+        margin: 1rem 0;
+        line-height: 1rem;
+      }
+
+      /* 添加箭头脉冲动画 */
+      @keyframes pulse {
+        0% {
+          transform: scale(1);
+          opacity: 1;
+        }
+        50% {
+          transform: scale(1.1);
+        opacity: 0.8;
+        }
+        100% {
+          transform: scale(1);
+          opacity: 1;
+        }
+      }
+
+      /* 视频悬停效果 */
+      .video-hover-effect {
+        transition: all 0.3s ease;
+      }
+
+      .video-hover-effect:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 12px 25px rgba(0,0,0,0.2) !important;
+      }
+
+    </style>
+  
+  </head>
+<body>
+
+<section class="hero section-white">
+  <div class="hero-body">
+    <div class="container is-max-widescreen">
+      <div class="columns is-centered">
+        <div class="column has-text-centered">
+          <h1 class="title is-1 publication-title">LoRA-Edit: Controllable First-Frame-Guided Video Editing via Mask-Aware LoRA Fine-Tuning</h1>
+          <div class="is-size-5 publication-authors">
+            <span class="author-block">
+              <a href="https://scholar.google.com/citations?user=BXoHuGwAAAAJ">Chenjian Gao</a><sup>1</sup>,</span>
+            <span class="author-block">
+              <a href="https://scholar.google.com/citations?user=6nJrd8oAAAAJ">Lihe Ding</a><sup>1</sup>,</span>
+            <span class="author-block">
+              <a href="https://scholar.google.com/citations?user=Uf-cuH4AAAAJ">Xin Cai</a><sup>1</sup>,</span>
+            <span class="author-block">
+              <a href="https://openreview.net/profile?id=~Zhanpeng_Huang1">Zhanpeng Huang</a><sup>2</sup>,</span>
+            <span class="author-block">
+              <a href="https://openreview.net/profile?id=~Zibin_Wang1">Zibin Wang</a><sup>2</sup>,</span>
+            <span class="author-block">
+              <a href="https://scholar.google.com/citations?user=RfSQKrIAAAAJ">Tianfan Xue</a><sup>1</sup></span>
+          </div>
+          <div class="is-size-5 publication-authors">
+            <span class="author-block"><sup>1</sup>The Chinese University of Hong Kong, <sup>2</sup>SenseTime Research</span>
+          </div>
+          <div class="column has-text-centered">
+            <div class="publication-links">
+              <span class="link-block">
+                <a href="static/paper.pdf" class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon"><i class="fas fa-file-pdf"></i></span>
+                  <span>Paper (Coming Soon)</span>
+                </a>
+              </span>
+              <span class="link-block">
+                <a href="https://github.com/cjeen/LoRAEdit" class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon"><i class="fab fa-github"></i></span>
+                  <span>Code</span>
+                </a>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="hero teaser section-light-gray">
+    <div class="container is-max-desktop">
+      <div class="hero-body">
+        <div class="content has-text-centered" style="margin-top: 3rem; margin-bottom: 2rem;">
+          <h2 class="title is-4" style="margin-bottom: 1rem;">🎥 Watch Our Demo</h2>
+        </div>
+        <div class="video-container">
+          <video id="teaser" autoplay loop playsinline controls>
+            <source src="static/videos/demo.mp4" type="video/mp4">
+          </video>
+        </div>
+        <h2 class="subtitle has-text-centered">
+          LoRA-Edit enables controllable video editing through mask-aware LoRA fine-tuning.
+        </h2>
+      </div>
+    </div>
+</section>
+  
+<section class="hero teaser section-white">
+  <div class="container is-max-desktop">
+      <div class="hero-body">
+        <div class="content has-text-centered" style="margin-top: 3rem; margin-bottom: 2rem;">
+          <h2 class="title is-3" style="margin-bottom: 1rem;">Abstract</h2>
+        </div>
+        <div class="content has-text-justified" style="max-width: 80%; margin: 0 auto;">
+          <p>
+            Video editing using diffusion models has achieved remarkable results in generating high-quality edits for videos. However, current methods often rely on large-scale pretraining, limiting flexibility for specific edits. First-frame-guided editing provides control over the first frame, but lacks flexibility over subsequent frames. To address this, we propose a mask-based LoRA (Low-Rank Adaptation) tuning method that adapts pretrained Image-to-Video (I2V) models for flexible video editing. Our approach preserves background regions while enabling controllable edits propagation. This solution offers efficient and adaptable video editing without altering the model architecture.
+          </p>
+          <p>
+            To better steer this process, we incorporate additional references, such as alternate viewpoints or representative scene states, which serve as visual anchors for how content should unfold. We address the control challenge using a mask-driven LoRA tuning strategy that adapts a pre-trained image-to-video model to the editing context.
+          </p>
+          <p>
+            The model must learn from two distinct sources: the input video provides spatial structure and motion cues, while reference images offer appearance guidance. A spatial mask enables region-specific learning by dynamically modulating what the model attends to, ensuring that each area draws from the appropriate source. Experimental results show our method achieves superior video editing performance compared to state-of-the-art methods.
+          </p>
+        </div>
+      </div>
+    </div>
+</section>
+
+<section class="section section-light-blue">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered">
+      <div class="column is-full">
+        <h2 class="title is-3">First-Frame-Guided Video Editing</h2>
+        <div class="content has-text-justified">
+          <p>We demonstrate our first-frame-guided video editing results using LoRA-Edit. Given an input video and an edited first frame, our method generates consistent video edits that propagate the first frame changes throughout the entire sequence. Move your mouse across the videos to compare source and edited results, or click to play/pause.</p>
+        </div>
+
+        <div class="video-comparison-wrapper" style="
+          padding: 0;
+          margin: 2rem 0;
+          position: relative;
+        ">
+          
+          <div style="
+            margin-bottom: 2rem;
+            text-align: center;
+          ">
+            <div style="
+              display: flex;
+              justify-content: center;
+              gap: 2rem;
+              align-items: center;
+            ">
+              
+              <div style="
+                position: relative;
+                display: inline-block;
+                border-radius: 15px;
+                overflow: hidden;
+                box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+                width: 300px;
+                flex: 0 0 300px;
+                transform: scale(1);
+                transition: transform 0.3s ease;
+              " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                <img id="first-frame-img" src="static/videos/first_frames/001_f1.png" style="
+                  width: 100%;
+                  height: auto;
+                  border-radius: 15px;
+                  display: block;
+                  filter: drop-shadow(0 8px 16px rgba(0,0,0,0.2));
+                "/>
+                <div style="
+                  position: absolute;
+                  bottom: 10px;
+                  left: 50%;
+                  transform: translateX(-50%);
+                  background: rgba(0,0,0,0.7);
+                  color: white;
+                  padding: 4px 8px;
+                  border-radius: 20px;
+                  font-size: 0.7rem;
+                  font-weight: bold;
+                  text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                ">First Frame</div>
+              </div>
+
+              <div style="
+                font-size: 1.5rem;
+                color: #667eea;
+                font-weight: bold;
+                text-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+                animation: pulse 2s infinite;
+                flex-shrink: 0;
+                padding: 0 10px;
+              ">→</div>
+
+              <div style="
+                position: relative;
+                display: inline-block;
+                border-radius: 15px;
+                overflow: hidden;
+                box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+                width: 300px;
+                flex: 0 0 300px;
+                transform: scale(1);
+                transition: transform 0.3s ease;
+              " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                <img id="edited-frame-img" src="static/videos/input/001_e1.png" style="
+                  width: 100%;
+                  height: auto;
+                  border-radius: 15px;
+                  display: block;
+                  filter: drop-shadow(0 8px 16px rgba(0,0,0,0.2));
+                "/>
+                <div style="
+                  position: absolute;
+                  bottom: 10px;
+                  left: 50%;
+                  transform: translateX(-50%);
+                  background: rgba(0,0,0,0.7);
+                  color: white;
+                  padding: 4px 8px;
+                  border-radius: 20px;
+                  font-size: 0.7rem;
+                  font-weight: bold;
+                  text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                ">Edited First Frame</div>
+              </div>
+            </div>
+          </div>
+
+          <div id="prev-video" class="nav-button" style="
+            position: absolute;
+            left: -4rem;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 1000;
+            font-size: 6rem;
+          ">‹</div>
+
+          <div id="next-video" class="nav-button" style="
+            position: absolute;
+            right: -4rem;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 1000;
+            font-size: 6rem;
+          ">›</div>
+
+          <div id="video-compare-container" style="
+            display: inline-block;
+            line-height: 0;
+            position: relative;
+            width: 100%;
+            max-width: none;
+            padding-top: 57.69%;
+            margin: 0 auto;
+            overflow: hidden;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            cursor: pointer;
+            box-sizing: border-box;
+          ">
+            <video id='input-video' muted loop style="
+              width: 100%;
+              position: absolute;
+              top: 0;
+              height: 100%;
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+              z-index: 1;
+            ">
+                <source src="static/videos/results/001.mp4" type="video/mp4">
+            </video>
+            <div id="video-clipper" style="
+              width: 50%;
+              position: absolute;
+              top: 0;
+              bottom: 0;
+              left: 0;
+              overflow: hidden;
+              z-index: 2;
+              box-sizing: border-box;
+            ">
+              <video id='result-video' muted loop style="
+                position: absolute;
+                top: 0;
+                left: 0;
+                height: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                box-sizing: border-box;
+                z-index: 2;
+                object-fit: fill;
+              ">
+                <source src="static/videos/input/001.mp4" type="video/mp4">
+              </video>
+            </div>
+
+            <div id="source-video-label" style="
+              position: absolute;
+              top: 15px;
+              left: 15px;
+              background: rgba(0,0,0,0.7);
+              color: white;
+              padding: 8px 16px;
+              border-radius: 20px;
+              font-weight: bold;
+              font-size: 0.9rem;
+              z-index: 5;
+              pointer-events: none;
+              transition: opacity 0.3s ease;
+            ">📹 Source Video</div>
+            
+            <div id="result-video-label" style="
+              position: absolute;
+              top: 15px;
+              right: 15px;
+              background: rgba(0,0,0,0.7);
+              color: white;
+              padding: 8px 16px;
+              border-radius: 20px;
+              font-weight: bold;
+              font-size: 0.9rem;
+              z-index: 5;
+              pointer-events: none;
+              transition: opacity 0.3s ease;
+            ">✨ Result</div>
+
+            <div id="video-indicator" style="
+              position: absolute;
+              top: 15px;
+              left: 50%;
+              transform: translateX(-50%);
+              background: rgba(0,0,0,0.7);
+              color: white;
+              padding: 6px 12px;
+              border-radius: 15px;
+              font-size: 0.8rem;
+              z-index: 20;
+              pointer-events: none;
+            ">1/11</div>
+
+            <div style="
+              position: absolute;
+              bottom: 15px;
+              left: 50%;
+              transform: translateX(-50%);
+              background: rgba(0,0,0,0.7);
+              color: white;
+              padding: 8px 16px;
+              border-radius: 20px;
+              font-size: 0.8rem;
+              z-index: 15;
+              pointer-events: none;
+              text-align: center;
+              white-space: nowrap;
+            ">🎬 Click video to play/pause</div>
+
+            <div style="
+              position: absolute;
+              top: 0;
+              left: 50%;
+              width: 4px;
+              height: 100%;
+              background: rgba(255,255,255,0.8);
+              transform: translateX(-50%);
+              z-index: 10;
+              pointer-events: none;
+              box-shadow: 0 0 10px rgba(0,0,0,0.3);
+            "></div>
+
+            <div style="
+              position: absolute;
+              top: 50%;
+              left: 50%;
+              width: 20px;
+              height: 20px;
+              background: white;
+              border-radius: 50%;
+              transform: translate(-50%, -50%);
+              z-index: 11;
+              pointer-events: none;
+              box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            ">
+              <div style="
+                width: 6px;
+                height: 6px;
+                background: #667eea;
+                border-radius: 50%;
+              "></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section section-white">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered">
+      <div class="column is-full">
+        <h2 class="title is-3">Additional Reference-Guided Editing</h2>
+        <div class="content has-text-justified" style="margin-bottom: 2rem;">
+          <p>Beyond using just the edited first frame, our method can incorporate additional reference frames to provide more flexible editing guidance. Here we demonstrate how adding a second edited frame (from a different time point) enhances the controllability throughout the entire video sequence.</p>
+        </div>
+
+        <div class="container is-fullhd" style="max-width: none; padding: 0 2rem;">
+          <div id="carousel-add-ref" class="owl-carousel">
+            
+            <div class="item">
+              
+              <div style="display: flex; justify-content: center; gap: 1rem; margin-bottom: 2rem; align-items: center; max-width: 100%; padding: 0;">
+                
+                <div style="
+                  position: relative; 
+                  width: 220px; 
+                  height: 124px;
+                  flex: 0 0 220px;
+                  transform: scale(1);
+                  transition: transform 0.3s ease;
+                  overflow: hidden;
+                  border-radius: 15px;
+                  box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+                " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                  <video autoplay muted loop playsinline style="
+                    width: 100%; 
+                    height: 100%;
+                    object-fit: cover;
+                    border-radius: 15px; 
+                    filter: drop-shadow(0 8px 16px rgba(0,0,0,0.2));
+                  ">
+                    <source src="static/videos/input/003.mp4" type="video/mp4">
+                  </video>
+                  <div style="
+                    position: absolute; 
+                    bottom: 8px; 
+                    left: 50%; 
+                    transform: translateX(-50%); 
+                    background: rgba(0,0,0,0.8); 
+                    color: white; 
+                    padding: 4px 8px; 
+                    border-radius: 15px; 
+                    font-size: 0.7rem; 
+                    font-weight: bold; 
+                    white-space: nowrap;
+                    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                  ">Source Video</div>
+                </div>
+
+                <div style="
+                  font-size: 1.5rem; 
+                  color: #667eea; 
+                  font-weight: bold;
+                  text-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+                  animation: pulse 2s infinite;
+                  flex-shrink: 0;
+                  padding: 0 8px;
+                ">→</div>
+
+                <div style="
+                  position: relative; 
+                  width: 220px; 
+                  flex: 0 0 220px;
+                  transform: scale(1);
+                  transition: transform 0.3s ease;
+                " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                  <img src="static/videos/input/003_e1.png" style="
+                    width: 100%; 
+                    height: auto; 
+                    border-radius: 15px; 
+                    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+                    filter: drop-shadow(0 8px 16px rgba(0,0,0,0.2));
+                  "/>
+                  
+                  <div style="
+                    position: absolute;
+                    top: 8px;
+                    right: 8px;
+                    width: 24px;
+                    height: 24px;
+                    background: white;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: black;
+                    font-size: 0.8rem;
+                    font-weight: bold;
+                    z-index: 10;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+                  ">1</div>
+                  <div style="
+                    position: absolute; 
+                    bottom: 8px; 
+                    left: 50%; 
+                    transform: translateX(-50%); 
+                    background: rgba(0,0,0,0.8); 
+                    color: white; 
+                    padding: 4px 8px; 
+                    border-radius: 15px; 
+                    font-size: 0.7rem; 
+                    font-weight: bold; 
+                    white-space: nowrap;
+                    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                  ">Edited First Frame</div>
+                </div>
+
+                <div style="
+                  font-size: 1.8rem; 
+                  color: #667eea; 
+                  font-weight: bold;
+                  text-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+                  animation: pulse 2s infinite;
+                  flex-shrink: 0;
+                  padding: 0 8px;
+                ">+</div>
+
+                <div style="
+                  position: relative; 
+                  width: 220px; 
+                  flex: 0 0 220px;
+                  transform: scale(1);
+                  transition: transform 0.3s ease;
+                " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                  <img src="static/videos/add_input/003_e2.png" style="
+                    width: 100%; 
+                    height: auto; 
+                    border-radius: 15px; 
+                    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+                    filter: drop-shadow(0 8px 16px rgba(0,0,0,0.2));
+                  "/>
+                  
+                  <div style="
+                    position: absolute;
+                    top: 8px;
+                    right: 8px;
+                    width: 24px;
+                    height: 24px;
+                    background: white;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: black;
+                    font-size: 0.8rem;
+                    font-weight: bold;
+                    z-index: 10;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+                  ">2</div>
+                  <div style="
+                    position: absolute; 
+                    bottom: 8px; 
+                    left: 50%; 
+                    transform: translateX(-50%); 
+                    background: rgba(0,0,0,0.8); 
+                    color: white; 
+                    padding: 4px 8px; 
+                    border-radius: 15px; 
+                    font-size: 0.7rem; 
+                    font-weight: bold; 
+                    white-space: nowrap;
+                    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                  ">Additional Edited Frame</div>
+                </div>
+              </div>
+
+              <div class="columns" style="margin: 0; gap: 1rem;">
+                <div class="column" style="padding: 0 0.5rem;">
+                  <div style="position: relative;">
+                    <video autoplay muted loop playsinline style="
+                      width: 100%; 
+                      height: 250px;
+                      object-fit: cover;
+                      border-radius: 15px; 
+                      box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+                    ">
+                      <source src="static/videos/results/003.mp4" type="video/mp4">
+                    </video>
+                    <div style="
+                      position: absolute; 
+                      bottom: 8px; 
+                      left: 50%; 
+                      transform: translateX(-50%); 
+                      background: rgba(0,0,0,0.8); 
+                      color: white; 
+                      padding: 6px 12px; 
+                      border-radius: 20px; 
+                      font-size: 0.8rem; 
+                      font-weight: bold; 
+                      white-space: nowrap;
+                      display: flex;
+                      align-items: center;
+                      gap: 4px;
+                    ">Using <span style="
+                      display: inline-flex;
+                      align-items: center;
+                      justify-content: center;
+                      width: 16px;
+                      height: 16px;
+                      background: white;
+                      color: black;
+                      border-radius: 50%;
+                      font-size: 0.6rem;
+                      font-weight: bold;
+                    ">1</span> Only</div>
+                  </div>
+                </div>
+                <div class="column" style="padding: 0 0.5rem;">
+                  <div style="position: relative;">
+                    <video autoplay muted loop playsinline oncanplay="this.playbackRate = 2.0;" style="
+                      width: 100%; 
+                      height: 250px;
+                      object-fit: cover;
+                      border-radius: 15px; 
+                      box-shadow: 0 8px 20px rgba(102, 126, 234, 0.2);
+                    ">
+                      <source src="static/videos/add_result/003.mp4" type="video/mp4">
+                    </video>
+                    <div style="
+                      position: absolute; 
+                      bottom: 8px; 
+                      left: 50%; 
+                      transform: translateX(-50%); 
+                      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                      color: white; 
+                      padding: 6px 12px; 
+                      border-radius: 20px; 
+                      font-size: 0.8rem; 
+                      font-weight: bold; 
+                      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+                      white-space: nowrap;
+                      display: flex;
+                      align-items: center;
+                      gap: 4px;
+                    ">Using <span style="
+                      display: inline-flex;
+                      align-items: center;
+                      justify-content: center;
+                      width: 16px;
+                      height: 16px;
+                      background: white;
+                      color: black;
+                      border-radius: 50%;
+                      font-size: 0.6rem;
+                      font-weight: bold;
+                    ">1</span> + <span style="
+                      display: inline-flex;
+                      align-items: center;
+                      justify-content: center;
+                      width: 16px;
+                      height: 16px;
+                      background: white;
+                      color: black;
+                      border-radius: 50%;
+                      font-size: 0.6rem;
+                      font-weight: bold;
+                    ">2</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="item">
+              
+              <div style="display: flex; justify-content: center; gap: 1rem; margin-bottom: 2rem; align-items: center; max-width: 100%; padding: 0;">
+                
+                <div style="
+                  position: relative; 
+                  width: 220px; 
+                  height: 124px;
+                  flex: 0 0 220px;
+                  transform: scale(1);
+                  transition: transform 0.3s ease;
+                  overflow: hidden;
+                  border-radius: 15px;
+                  box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+                " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                  <video autoplay muted loop playsinline style="
+                    width: 100%; 
+                    height: 100%;
+                    object-fit: cover;
+                    border-radius: 15px; 
+                    filter: drop-shadow(0 8px 16px rgba(0,0,0,0.2));
+                  ">
+                    <source src="static/videos/input/021.mp4" type="video/mp4">
+                  </video>
+                  <div style="
+                    position: absolute; 
+                    bottom: 8px; 
+                    left: 50%; 
+                    transform: translateX(-50%); 
+                    background: rgba(0,0,0,0.8); 
+                    color: white; 
+                    padding: 4px 8px; 
+                    border-radius: 15px; 
+                    font-size: 0.7rem; 
+                    font-weight: bold; 
+                    white-space: nowrap;
+                    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                  ">Source Video</div>
+                </div>
+
+                <div style="
+                  font-size: 1.5rem; 
+                  color: #667eea; 
+                  font-weight: bold;
+                  text-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+                  animation: pulse 2s infinite;
+                  flex-shrink: 0;
+                  padding: 0 8px;
+                ">→</div>
+
+                <div style="
+                  position: relative; 
+                  width: 220px; 
+                  flex: 0 0 220px;
+                  transform: scale(1);
+                  transition: transform 0.3s ease;
+                " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                  <img src="static/videos/input/021_e1.png" style="
+                    width: 100%; 
+                    height: auto; 
+                    border-radius: 15px; 
+                    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+                    filter: drop-shadow(0 8px 16px rgba(0,0,0,0.2));
+                  "/>
+                  
+                  <div style="
+                    position: absolute;
+                    top: 8px;
+                    right: 8px;
+                    width: 24px;
+                    height: 24px;
+                    background: white;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: black;
+                    font-size: 0.8rem;
+                    font-weight: bold;
+                    z-index: 10;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+                  ">1</div>
+                  <div style="
+                    position: absolute; 
+                    bottom: 8px; 
+                    left: 50%; 
+                    transform: translateX(-50%); 
+                    background: rgba(0,0,0,0.8); 
+                    color: white; 
+                    padding: 4px 8px; 
+                    border-radius: 15px; 
+                    font-size: 0.7rem; 
+                    font-weight: bold; 
+                    white-space: nowrap;
+                    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                  ">Edited First Frame</div>
+                </div>
+
+                <div style="
+                  font-size: 1.8rem; 
+                  color: #667eea; 
+                  font-weight: bold;
+                  text-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+                  animation: pulse 2s infinite;
+                  flex-shrink: 0;
+                  padding: 0 8px;
+                ">+</div>
+
+                <div style="
+                  position: relative; 
+                  width: 220px; 
+                  flex: 0 0 220px;
+                  transform: scale(1);
+                  transition: transform 0.3s ease;
+                " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                  <img src="static/videos/add_input/021_e2.png" style="
+                    width: 100%; 
+                    height: auto; 
+                    border-radius: 15px; 
+                    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+                    filter: drop-shadow(0 8px 16px rgba(0,0,0,0.2));
+                  "/>
+                  
+                  <div style="
+                    position: absolute;
+                    top: 8px;
+                    right: 8px;
+                    width: 24px;
+                    height: 24px;
+                    background: white;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: black;
+                    font-size: 0.8rem;
+                    font-weight: bold;
+                    z-index: 10;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+                  ">2</div>
+                  <div style="
+                    position: absolute; 
+                    bottom: 8px; 
+                    left: 50%; 
+                    transform: translateX(-50%); 
+                    background: rgba(0,0,0,0.8); 
+                    color: white; 
+                    padding: 4px 8px; 
+                    border-radius: 15px; 
+                    font-size: 0.7rem; 
+                    font-weight: bold; 
+                    white-space: nowrap;
+                    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                  ">Additional Edited Frame</div>
+                </div>
+              </div>
+
+              <div class="columns" style="margin: 0; gap: 1rem;">
+                <div class="column" style="padding: 0 0.5rem;">
+                  <div style="position: relative;">
+                    <video autoplay muted loop playsinline style="
+                      width: 100%; 
+                      height: 250px;
+                      object-fit: cover;
+                      border-radius: 15px; 
+                      box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+                    ">
+                      <source src="static/videos/results/021.mp4" type="video/mp4">
+                    </video>
+                    <div style="
+                      position: absolute; 
+                      bottom: 8px; 
+                      left: 50%; 
+                      transform: translateX(-50%); 
+                      background: rgba(0,0,0,0.8); 
+                      color: white; 
+                      padding: 6px 12px; 
+                      border-radius: 20px; 
+                      font-size: 0.8rem; 
+                      font-weight: bold; 
+                      white-space: nowrap;
+                      display: flex;
+                      align-items: center;
+                      gap: 4px;
+                    ">Using <span style="
+                      display: inline-flex;
+                      align-items: center;
+                      justify-content: center;
+                      width: 16px;
+                      height: 16px;
+                      background: white;
+                      color: black;
+                      border-radius: 50%;
+                      font-size: 0.6rem;
+                      font-weight: bold;
+                    ">1</span> Only</div>
+                  </div>
+                </div>
+                <div class="column" style="padding: 0 0.5rem;">
+                  <div style="position: relative;">
+                    <video autoplay muted loop playsinline oncanplay="this.playbackRate = 2.0;" style="
+                      width: 100%; 
+                      height: 250px;
+                      object-fit: cover;
+                      border-radius: 15px; 
+                      box-shadow: 0 8px 20px rgba(102, 126, 234, 0.2);
+                    ">
+                      <source src="static/videos/add_result/021.mp4" type="video/mp4">
+                    </video>
+                    <div style="
+                      position: absolute; 
+                      bottom: 8px; 
+                      left: 50%; 
+                      transform: translateX(-50%); 
+                      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                      color: white; 
+                      padding: 6px 12px; 
+                      border-radius: 20px; 
+                      font-size: 0.8rem; 
+                      font-weight: bold; 
+                      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+                      white-space: nowrap;
+                      display: flex;
+                      align-items: center;
+                      gap: 4px;
+                    ">Using <span style="
+                      display: inline-flex;
+                      align-items: center;
+                      justify-content: center;
+                      width: 16px;
+                      height: 16px;
+                      background: white;
+                      color: black;
+                      border-radius: 50%;
+                      font-size: 0.6rem;
+                      font-weight: bold;
+                    ">1</span> + <span style="
+                      display: inline-flex;
+                      align-items: center;
+                      justify-content: center;
+                      width: 16px;
+                      height: 16px;
+                      background: white;
+                      color: black;
+                      border-radius: 50%;
+                      font-size: 0.6rem;
+                      font-weight: bold;
+                    ">2</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div id="carousel-indicator-add-ref" class="has-text-centered mt-4" style="display: none;">1/2</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section section-light-gray">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered">
+      <div class="column is-full">
+        <h2 class="title is-3">Comparisons</h2>
+
+        <h3 class="title is-4">Comparison with Reference-Guided Video Editing</h3>
+        <div class="content has-text-justified" style="margin-bottom: 1rem;">
+          <p>We compare LoRA-Edit with reference-guided video editing methods, demonstrating our method's advantages in maintaining reference fidelity.</p>
+        </div>
+
+        <div class="container is-fullhd" style="max-width: none; padding: 0 2rem;">
+          <div id="carousel-ref-comp" class="owl-carousel">
+            <div class="item">
+              <div class="columns" style="height: 400px; align-items: stretch; margin: 0;">
+                <div class="column">
+                  <div style="position: relative; height: 100%;">
+                    <video autoplay muted loop playsinline style="
+                      width: 100%; 
+                      height: 100%;
+                      object-fit: cover;
+                      border-radius: 10px; 
+                      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+                    ">
+                    <source src="static/videos/ref_comp/input/019.mp4" type="video/mp4">
+                  </video>
+                    
+                    <img src="static/videos/ref_comp/input/019_r1.jpg" style="
+                      position: absolute;
+                      top: 10px;
+                      right: 10px;
+                      max-width: 120px;
+                      max-height: 90px;
+                      width: auto;
+                      height: auto;
+                      object-fit: contain;
+                      border-radius: 8px;
+                      border: 2px solid white;
+                      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                      z-index: 10;
+                    "/>
+                    
+                    <div style="
+                      position: absolute;
+                      top: 10px;
+                      right: 10px;
+                      background: rgba(0,0,0,0.8);
+                      color: white;
+                      padding: 2px 6px;
+                      border-radius: 10px;
+                      font-size: 0.6rem;
+                      font-weight: bold;
+                      text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+                      pointer-events: none;
+                      z-index: 11;
+                      transform: translateY(-20px);
+                    ">Reference</div>
+                    <div style="
+                      position: absolute;
+                      bottom: 10px;
+                      left: 50%;
+                      transform: translateX(-50%);
+                      background: rgba(0,0,0,0.7);
+                      color: white;
+                      padding: 6px 16px;
+                      border-radius: 20px;
+                      font-size: 0.8rem;
+                      font-weight: bold;
+                      text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                      pointer-events: none;
+                      white-space: nowrap;
+                    ">Source Video</div>
+                  </div>
+                </div>
+                <div class="column">
+                  <div style="position: relative; height: 100%;">
+                    <video autoplay muted loop playsinline style="
+                      width: 100%; 
+                      height: 100%;
+                      object-fit: cover;
+                      border-radius: 10px; 
+                      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+                    ">
+                    <source src="static/videos/ref_comp/vace/019.mp4" type="video/mp4">
+                  </video>
+                    <div style="
+                      position: absolute;
+                      bottom: 10px;
+                      left: 50%;
+                      transform: translateX(-50%);
+                      background: rgba(0,0,0,0.7);
+                      color: white;
+                      padding: 6px 12px;
+                      border-radius: 20px;
+                      font-size: 0.8rem;
+                      font-weight: bold;
+                      text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                      pointer-events: none;
+                    ">VACE</div>
+                  </div>
+                </div>
+                <div class="column">
+                  <div style="position: relative; height: 100%;">
+                    <video autoplay muted loop playsinline style="
+                      width: 100%; 
+                      height: 100%;
+                      object-fit: cover;
+                      border-radius: 10px; 
+                      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+                    ">
+                    <source src="static/videos/ref_comp/kling/019.mp4" type="video/mp4">
+                  </video>
+                    <div style="
+                      position: absolute;
+                      bottom: 10px;
+                      left: 50%;
+                      transform: translateX(-50%);
+                      background: rgba(0,0,0,0.7);
+                      color: white;
+                      padding: 6px 12px;
+                      border-radius: 20px;
+                      font-size: 0.8rem;
+                      font-weight: bold;
+                      text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                      pointer-events: none;
+                    ">Kling 1.6</div>
+                  </div>
+                </div>
+                <div class="column">
+                  <div style="position: relative; height: 100%;">
+                    <video autoplay muted loop playsinline style="
+                      width: 100%; 
+                      height: 100%;
+                      object-fit: cover;
+                      border-radius: 10px; 
+                      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+                    ">
+                    <source src="static/videos/ref_comp/ours/019.mp4" type="video/mp4">
+                  </video>
+                    <div style="
+                      position: absolute;
+                      bottom: 10px;
+                      left: 50%;
+                      transform: translateX(-50%);
+                      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                      color: white;
+                      padding: 6px 12px;
+                      border-radius: 20px;
+                      font-size: 0.8rem;
+                      font-weight: bold;
+                      text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                      pointer-events: none;
+                      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+                    ">Ours</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="item">
+              <div class="columns" style="height: 400px; align-items: stretch; margin: 0;">
+                <div class="column">
+                  <div style="position: relative; height: 100%;">
+                    <video autoplay muted loop playsinline style="
+                      width: 100%; 
+                      height: 100%;
+                      object-fit: cover;
+                      border-radius: 10px; 
+                      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+                    ">
+                    <source src="static/videos/ref_comp/input/022.mp4" type="video/mp4">
+                  </video>
+                    
+                    <img src="static/videos/ref_comp/input/022_r1.png" style="
+                      position: absolute;
+                      top: 10px;
+                      right: 10px;
+                      max-width: 120px;
+                      max-height: 90px;
+                      width: auto;
+                      height: auto;
+                      object-fit: contain;
+                      border-radius: 8px;
+                      border: 2px solid white;
+                      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                      z-index: 10;
+                    "/>
+                    
+                    <div style="
+                      position: absolute;
+                      top: 10px;
+                      right: 10px;
+                      background: rgba(0,0,0,0.8);
+                      color: white;
+                      padding: 2px 6px;
+                      border-radius: 10px;
+                      font-size: 0.6rem;
+                      font-weight: bold;
+                      text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+                      pointer-events: none;
+                      z-index: 11;
+                      transform: translateY(-20px);
+                    ">Reference</div>
+                    <div style="
+                      position: absolute;
+                      bottom: 10px;
+                      left: 50%;
+                      transform: translateX(-50%);
+                      background: rgba(0,0,0,0.7);
+                      color: white;
+                      padding: 6px 16px;
+                      border-radius: 20px;
+                      font-size: 0.8rem;
+                      font-weight: bold;
+                      text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                      pointer-events: none;
+                      white-space: nowrap;
+                    ">Source Video</div>
+                  </div>
+                </div>
+                <div class="column">
+                  <div style="position: relative; height: 100%;">
+                    <video autoplay muted loop playsinline style="
+                      width: 100%; 
+                      height: 100%;
+                      object-fit: cover;
+                      border-radius: 10px; 
+                      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+                    ">
+                    <source src="static/videos/ref_comp/vace/022.mp4" type="video/mp4">
+                  </video>
+                    <div style="
+                      position: absolute;
+                      bottom: 10px;
+                      left: 50%;
+                      transform: translateX(-50%);
+                      background: rgba(0,0,0,0.7);
+                      color: white;
+                      padding: 6px 12px;
+                      border-radius: 20px;
+                      font-size: 0.8rem;
+                      font-weight: bold;
+                      text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                      pointer-events: none;
+                    ">VACE</div>
+                  </div>
+                </div>
+                <div class="column">
+                  <div style="position: relative; height: 100%;">
+                    <video autoplay muted loop playsinline style="
+                      width: 100%; 
+                      height: 100%;
+                      object-fit: cover;
+                      border-radius: 10px; 
+                      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+                    ">
+                    <source src="static/videos/ref_comp/kling/022.mp4" type="video/mp4">
+                  </video>
+                    <div style="
+                      position: absolute;
+                      bottom: 10px;
+                      left: 50%;
+                      transform: translateX(-50%);
+                      background: rgba(0,0,0,0.7);
+                      color: white;
+                      padding: 6px 12px;
+                      border-radius: 20px;
+                      font-size: 0.8rem;
+                      font-weight: bold;
+                      text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                      pointer-events: none;
+                    ">Kling 1.6</div>
+                  </div>
+                </div>
+                <div class="column">
+                  <div style="position: relative; height: 100%;">
+                    <video autoplay muted loop playsinline style="
+                      width: 100%; 
+                      height: 100%;
+                      object-fit: cover;
+                      border-radius: 10px; 
+                      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+                    ">
+                    <source src="static/videos/ref_comp/ours/022.mp4" type="video/mp4">
+                  </video>
+                    <div style="
+                      position: absolute;
+                      bottom: 10px;
+                      left: 50%;
+                      transform: translateX(-50%);
+                      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                      color: white;
+                      padding: 6px 12px;
+                      border-radius: 20px;
+                      font-size: 0.8rem;
+                      font-weight: bold;
+                      text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                      pointer-events: none;
+                      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+                    ">Ours</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="item">
+              <div class="columns" style="height: 400px; align-items: stretch; margin: 0;">
+                <div class="column">
+                  <div style="position: relative; height: 100%;">
+                    <video autoplay muted loop playsinline style="
+                      width: 100%; 
+                      height: 100%;
+                      object-fit: cover;
+                      border-radius: 10px; 
+                      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+                    ">
+                    <source src="static/videos/ref_comp/input/026.mp4" type="video/mp4">
+                  </video>
+                    
+                    <img src="static/videos/ref_comp/input/026_r1.jpg" style="
+                      position: absolute;
+                      top: 10px;
+                      right: 10px;
+                      max-width: 120px;
+                      max-height: 90px;
+                      width: auto;
+                      height: auto;
+                      object-fit: contain;
+                      border-radius: 8px;
+                      border: 2px solid white;
+                      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                      z-index: 10;
+                    "/>
+                    
+                    <div style="
+                      position: absolute;
+                      top: 10px;
+                      right: 10px;
+                      background: rgba(0,0,0,0.8);
+                      color: white;
+                      padding: 2px 6px;
+                      border-radius: 10px;
+                      font-size: 0.6rem;
+                      font-weight: bold;
+                      text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+                      pointer-events: none;
+                      z-index: 11;
+                      transform: translateY(-20px);
+                    ">Reference</div>
+                    <div style="
+                      position: absolute;
+                      bottom: 10px;
+                      left: 50%;
+                      transform: translateX(-50%);
+                      background: rgba(0,0,0,0.7);
+                      color: white;
+                      padding: 6px 16px;
+                      border-radius: 20px;
+                      font-size: 0.8rem;
+                      font-weight: bold;
+                      text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                      pointer-events: none;
+                      white-space: nowrap;
+                    ">Source Video</div>
+                  </div>
+                </div>
+                <div class="column">
+                  <div style="position: relative; height: 100%;">
+                    <video autoplay muted loop playsinline style="
+                      width: 100%; 
+                      height: 100%;
+                      object-fit: cover;
+                      border-radius: 10px; 
+                      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+                    ">
+                    <source src="static/videos/ref_comp/vace/026.mp4" type="video/mp4">
+                  </video>
+                    <div style="
+                      position: absolute;
+                      bottom: 10px;
+                      left: 50%;
+                      transform: translateX(-50%);
+                      background: rgba(0,0,0,0.7);
+                      color: white;
+                      padding: 6px 12px;
+                      border-radius: 20px;
+                      font-size: 0.8rem;
+                      font-weight: bold;
+                      text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                      pointer-events: none;
+                    ">VACE</div>
+                  </div>
+                </div>
+                <div class="column">
+                  <div style="position: relative; height: 100%;">
+                    <video autoplay muted loop playsinline style="
+                      width: 100%; 
+                      height: 100%;
+                      object-fit: cover;
+                      border-radius: 10px; 
+                      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+                    ">
+                    <source src="static/videos/ref_comp/kling/026.mp4" type="video/mp4">
+                  </video>
+                    <div style="
+                      position: absolute;
+                      bottom: 10px;
+                      left: 50%;
+                      transform: translateX(-50%);
+                      background: rgba(0,0,0,0.7);
+                      color: white;
+                      padding: 6px 12px;
+                      border-radius: 20px;
+                      font-size: 0.8rem;
+                      font-weight: bold;
+                      text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                      pointer-events: none;
+                    ">Kling 1.6</div>
+                  </div>
+                </div>
+                <div class="column">
+                  <div style="position: relative; height: 100%;">
+                    <video autoplay muted loop playsinline style="
+                      width: 100%; 
+                      height: 100%;
+                      object-fit: cover;
+                      border-radius: 10px; 
+                      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+                    ">
+                    <source src="static/videos/ref_comp/ours/026.mp4" type="video/mp4">
+                  </video>
+                    <div style="
+                      position: absolute;
+                      bottom: 10px;
+                      left: 50%;
+                      transform: translateX(-50%);
+                      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                      color: white;
+                      padding: 6px 12px;
+                      border-radius: 20px;
+                      font-size: 0.8rem;
+                      font-weight: bold;
+                      text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                      pointer-events: none;
+                      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+                    ">Ours</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          </div>
+          </div>
+          <div id="carousel-indicator-ref-comp" class="has-text-centered mt-4" style="display: none;">1/3</div>
+        </div>
+
+        <h3 class="title is-4" style="margin-top: 2rem;">Comparison with First-Frame-Guided Video Editing</h3>
+        <div class="content has-text-justified" style="margin-bottom: 1rem;">
+          <p>We also compare with first-frame-guided video editing methods, showcasing LoRA-Edit's superior performance in propagating first-frame edits with high quality while preserving the background.</p>
+        </div>
+
+        <div class="container is-max-widescreen">
+          <div id="carousel-first-comp" class="owl-carousel">
+            <div class="item">
+              
+              <div style="display: flex; justify-content: space-between; align-items: center; gap: 0; margin-bottom: 1.5rem;">
+                
+                <div style="
+                  position: relative; 
+                  width: 300px; 
+                  height: 169px; 
+                  flex: 0 0 300px; 
+                  overflow: hidden; 
+                  border-radius: 15px; 
+                  box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+                  transform: scale(1);
+                  transition: transform 0.3s ease;
+                " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                  <video autoplay muted loop playsinline style="
+                    width: 100%; 
+                    height: 100%;
+                    object-fit: cover;
+                    border-radius: 15px; 
+                  ">
+                    <source src="static/videos/first_comp/input/001_e1.mp4" type="video/mp4">
+                  </video>
+                  <div style="
+                    position: absolute; 
+                    top: 8px; 
+                    left: 50%; 
+                    transform: translateX(-50%); 
+                    background: rgba(0,0,0,0.7); 
+                    color: white; 
+                    padding: 4px 8px; 
+                    border-radius: 15px; 
+                    font-size: 0.7rem; 
+                    font-weight: bold; 
+                    pointer-events: none;
+                    white-space: nowrap;
+                  ">Source Video</div>
+                </div>
+
+                <div style="
+                  position: relative; 
+                  display: inline-block; 
+                  border-radius: 15px; 
+                  overflow: hidden; 
+                  box-shadow: 0 8px 25px rgba(0,0,0,0.2); 
+                  width: 300px;
+                  flex: 0 0 300px;
+                  transform: scale(1);
+                  transition: transform 0.3s ease;
+                " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                  <img src="static/videos/first_comp/first_frames/001_e1_first.png" style="
+                    width: 100%; 
+                    height: auto; 
+                    border-radius: 15px; 
+                    display: block;
+                  "/>
+                  <div style="
+                    position: absolute; 
+                    top: 8px; 
+                    left: 50%; 
+                    transform: translateX(-50%); 
+                    background: rgba(0,0,0,0.7); 
+                    color: white; 
+                    padding: 4px 8px; 
+                    border-radius: 15px; 
+                    font-size: 0.7rem; 
+                    font-weight: bold; 
+                    white-space: nowrap;
+                  ">First Frame</div>
+                </div>
+
+                <div style="
+                  font-size: 1.5rem; 
+                  color: #667eea; 
+                  font-weight: bold;
+                  text-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+                  animation: pulse 2s infinite;
+                  flex-shrink: 0;
+                  padding: 0 10px;
+                ">→</div>
+
+                <div style="
+                  position: relative; 
+                  display: inline-block; 
+                  border-radius: 15px; 
+                  overflow: hidden; 
+                  box-shadow: 0 8px 25px rgba(0,0,0,0.2); 
+                  width: 300px;
+                  flex: 0 0 300px;
+                  transform: scale(1);
+                  transition: transform 0.3s ease;
+                " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                  <img src="static/videos/first_comp/input/001_e1.png" style="
+                    width: 100%; 
+                    height: auto; 
+                    border-radius: 15px; 
+                    display: block;
+                  "/>
+                  <div style="
+                    position: absolute; 
+                    top: 8px; 
+                    left: 50%; 
+                    transform: translateX(-50%); 
+                    background: rgba(0,0,0,0.7); 
+                    color: white; 
+                    padding: 4px 8px; 
+                    border-radius: 15px; 
+                    font-size: 0.7rem; 
+                    font-weight: bold;
+                    white-space: nowrap;
+                  ">Edited Frame</div>
+                </div>
+              </div>
+
+              <div class="columns" style="margin-bottom: 0.25rem; margin-left: -0.75rem; margin-right: -0.75rem;">
+                <div class="column is-6" style="padding-left: 0.05rem; padding-right: 0.05rem;">
+                  <div style="position: relative; height: 120px; overflow: hidden; border-radius: 15px;">
+                    <video autoplay muted loop playsinline style="
+                      width: 100%; 
+                      height: 100%;
+                      display: block;
+                      border-radius: 15px; 
+                      box-shadow: 0 6px 15px rgba(0,0,0,0.1);
+                      object-fit: cover;
+                    ">
+                    <source src="static/videos/first_comp/anyv2v/001_e1.mp4" type="video/mp4">
+                  </video>
+                    <div style="
+                      position: absolute; 
+                      top: 8px; 
+                      left: 50%; 
+                      transform: translateX(-50%); 
+                      background: rgba(0,0,0,0.8); 
+                      color: white; 
+                      padding: 6px 12px; 
+                      border-radius: 20px; 
+                      font-size: 0.8rem; 
+                      font-weight: bold; 
+                      backdrop-filter: blur(4px);
+                      pointer-events: none;
+                      z-index: 10;
+                    ">AnyV2V</div>
+                </div>
+                </div>
+                <div class="column is-6" style="padding-left: 0.05rem; padding-right: 0.05rem;">
+                  <div style="position: relative; height: 120px; overflow: hidden; border-radius: 15px;">
+                    <video autoplay muted loop playsinline style="
+                      width: 100%; 
+                      height: 100%;
+                      display: block;
+                      border-radius: 15px; 
+                      box-shadow: 0 6px 15px rgba(0,0,0,0.1);
+                      object-fit: cover;
+                    ">
+                    <source src="static/videos/first_comp/goflow/001_e1.mp4" type="video/mp4">
+                  </video>
+                    <div style="
+                      position: absolute; 
+                      top: 8px; 
+                      left: 50%; 
+                      transform: translateX(-50%); 
+                      background: rgba(0,0,0,0.8); 
+                      color: white; 
+                      padding: 6px 12px; 
+                      border-radius: 20px; 
+                      font-size: 0.8rem; 
+                      font-weight: bold; 
+                      backdrop-filter: blur(4px);
+                      pointer-events: none;
+                      z-index: 10;
+                    ">Go-with-the-Flow</div>
+                </div>
+                </div>
+              </div>
+
+              <div class="columns" style="margin-left: -0.75rem; margin-right: -0.75rem;">
+                <div class="column is-6" style="padding-left: 0.05rem; padding-right: 0.05rem;">
+                  <div style="position: relative; height: 120px; overflow: hidden; border-radius: 15px;">
+                    <video autoplay muted loop playsinline style="
+                      width: 100%; 
+                      height: 100%;
+                      display: block;
+                      border-radius: 15px; 
+                      box-shadow: 0 6px 15px rgba(0,0,0,0.1);
+                      object-fit: cover;
+                    ">
+                    <source src="static/videos/first_comp/i2vedit/001_e1.mp4" type="video/mp4">
+                  </video>
+                    <div style="
+                      position: absolute; 
+                      top: 8px; 
+                      left: 50%; 
+                      transform: translateX(-50%); 
+                      background: rgba(0,0,0,0.8); 
+                      color: white; 
+                      padding: 6px 12px; 
+                      border-radius: 20px; 
+                      font-size: 0.8rem; 
+                      font-weight: bold; 
+                      backdrop-filter: blur(4px);
+                      pointer-events: none;
+                      z-index: 10;
+                    ">I2VEdit</div>
+                </div>
+                </div>
+                <div class="column is-6" style="padding-left: 0.05rem; padding-right: 0.05rem;">
+                  <div style="position: relative; height: 120px; overflow: hidden; border-radius: 15px;">
+                    <video autoplay muted loop playsinline style="
+                      width: 100%; 
+                      height: 100%;
+                      display: block;
+                      border-radius: 15px; 
+                      box-shadow: 0 8px 20px rgba(102, 126, 234, 0.2);
+                      object-fit: cover;
+                    ">
+                    <source src="static/videos/first_comp/ours/001_e1.mp4" type="video/mp4">
+                  </video>
+                    <div style="
+                      position: absolute; 
+                      top: 8px; 
+                      left: 50%; 
+                      transform: translateX(-50%); 
+                      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                      color: white; 
+                      padding: 6px 12px; 
+                      border-radius: 20px; 
+                      font-size: 0.8rem; 
+                      font-weight: bold; 
+                      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+                      pointer-events: none;
+                      z-index: 10;
+                    ">Ours</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="item">
+              
+              <div style="display: flex; justify-content: space-between; align-items: center; gap: 0; margin-bottom: 1.5rem;">
+                
+                <div style="
+                  position: relative; 
+                  width: 300px; 
+                  height: 169px; 
+                  flex: 0 0 300px; 
+                  overflow: hidden; 
+                  border-radius: 15px; 
+                  box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+                  transform: scale(1);
+                  transition: transform 0.3s ease;
+                " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                  <video autoplay muted loop playsinline style="
+                    width: 100%; 
+                    height: 100%;
+                    object-fit: cover;
+                    border-radius: 15px; 
+                  ">
+                    <source src="static/videos/first_comp/input/002_e3.mp4" type="video/mp4">
+                  </video>
+                  <div style="
+                    position: absolute; 
+                    top: 8px; 
+                    left: 50%; 
+                    transform: translateX(-50%); 
+                    background: rgba(0,0,0,0.7); 
+                    color: white; 
+                    padding: 4px 8px; 
+                    border-radius: 15px; 
+                    font-size: 0.7rem; 
+                    font-weight: bold; 
+                    pointer-events: none;
+                    white-space: nowrap;
+                  ">Source Video</div>
+                </div>
+
+                <div style="
+                  position: relative; 
+                  display: inline-block; 
+                  border-radius: 15px; 
+                  overflow: hidden; 
+                  box-shadow: 0 8px 25px rgba(0,0,0,0.2); 
+                  width: 300px;
+                  flex: 0 0 300px;
+                  transform: scale(1);
+                  transition: transform 0.3s ease;
+                " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                  <img src="static/videos/first_comp/first_frames/002_e3_first.png" style="
+                    width: 100%; 
+                    height: auto; 
+                    border-radius: 15px; 
+                    display: block;
+                  "/>
+                  <div style="
+                    position: absolute; 
+                    top: 8px; 
+                    left: 50%; 
+                    transform: translateX(-50%); 
+                    background: rgba(0,0,0,0.7); 
+                    color: white; 
+                    padding: 4px 8px; 
+                    border-radius: 15px; 
+                    font-size: 0.7rem; 
+                    font-weight: bold; 
+                    white-space: nowrap;
+                  ">First Frame</div>
+                </div>
+
+                <div style="
+                  font-size: 1.5rem; 
+                  color: #667eea; 
+                  font-weight: bold;
+                  text-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+                  animation: pulse 2s infinite;
+                  flex-shrink: 0;
+                  padding: 0 10px;
+                ">→</div>
+
+                <div style="
+                  position: relative; 
+                  display: inline-block; 
+                  border-radius: 15px; 
+                  overflow: hidden; 
+                  box-shadow: 0 8px 25px rgba(0,0,0,0.2); 
+                  width: 300px;
+                  flex: 0 0 300px;
+                  transform: scale(1);
+                  transition: transform 0.3s ease;
+                " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                  <img src="static/videos/first_comp/input/002_e3.png" style="
+                    width: 100%; 
+                    height: auto; 
+                    border-radius: 15px; 
+                    display: block;
+                  "/>
+                  <div style="
+                    position: absolute; 
+                    top: 8px; 
+                    left: 50%; 
+                    transform: translateX(-50%); 
+                    background: rgba(0,0,0,0.7); 
+                    color: white; 
+                    padding: 4px 8px; 
+                    border-radius: 15px; 
+                    font-size: 0.7rem; 
+                    font-weight: bold;
+                    white-space: nowrap;
+                  ">Edited Frame</div>
+                </div>
+              </div>
+
+              <div class="columns" style="margin-bottom: 0.25rem; margin-left: -0.75rem; margin-right: -0.75rem;">
+                <div class="column is-6" style="padding-left: 0.05rem; padding-right: 0.05rem;">
+                  <div style="position: relative; height: 200px; overflow: hidden; border-radius: 15px;">
+                    <video autoplay muted loop playsinline style="
+                      width: 100%; 
+                      height: 100%;
+                      display: block;
+                      border-radius: 15px; 
+                      box-shadow: 0 6px 15px rgba(0,0,0,0.1);
+                      object-fit: fill;
+                    ">
+                    <source src="static/videos/first_comp/anyv2v/002_e3.mp4" type="video/mp4">
+                  </video>
+                    <div style="
+                      position: absolute; 
+                      top: 8px; 
+                      left: 50%; 
+                      transform: translateX(-50%); 
+                      background: rgba(0,0,0,0.8); 
+                      color: white; 
+                      padding: 6px 12px; 
+                      border-radius: 20px; 
+                      font-size: 0.8rem; 
+                      font-weight: bold; 
+                      backdrop-filter: blur(4px);
+                      pointer-events: none;
+                      z-index: 10;
+                    ">AnyV2V</div>
+                </div>
+                </div>
+                <div class="column is-6" style="padding-left: 0.05rem; padding-right: 0.05rem;">
+                  <div style="position: relative; height: 200px; overflow: hidden; border-radius: 15px;">
+                    <video autoplay muted loop playsinline style="
+                      width: 100%; 
+                      height: 100%;
+                      display: block;
+                      border-radius: 15px; 
+                      box-shadow: 0 6px 15px rgba(0,0,0,0.1);
+                      object-fit: fill;
+                    ">
+                    <source src="static/videos/first_comp/goflow/002_e3.mp4" type="video/mp4">
+                  </video>
+                    <div style="
+                      position: absolute; 
+                      top: 8px; 
+                      left: 50%; 
+                      transform: translateX(-50%); 
+                      background: rgba(0,0,0,0.8); 
+                      color: white; 
+                      padding: 6px 12px; 
+                      border-radius: 20px; 
+                      font-size: 0.8rem; 
+                      font-weight: bold; 
+                      backdrop-filter: blur(4px);
+                      pointer-events: none;
+                      z-index: 10;
+                    ">Go-with-the-Flow</div>
+                </div>
+                </div>
+              </div>
+
+              <div class="columns" style="margin-left: -0.75rem; margin-right: -0.75rem;">
+                <div class="column is-6" style="padding-left: 0.05rem; padding-right: 0.05rem;">
+                  <div style="position: relative; height: 200px; overflow: hidden; border-radius: 15px;">
+                    <video autoplay muted loop playsinline style="
+                      width: 100%; 
+                      height: 100%;
+                      display: block;
+                      border-radius: 15px; 
+                      box-shadow: 0 6px 15px rgba(0,0,0,0.1);
+                      object-fit: fill;
+                    ">
+                    <source src="static/videos/first_comp/i2vedit/002_e3.mp4" type="video/mp4">
+                  </video>
+                    <div style="
+                      position: absolute; 
+                      top: 8px; 
+                      left: 50%; 
+                      transform: translateX(-50%); 
+                      background: rgba(0,0,0,0.8); 
+                      color: white; 
+                      padding: 6px 12px; 
+                      border-radius: 20px; 
+                      font-size: 0.8rem; 
+                      font-weight: bold; 
+                      backdrop-filter: blur(4px);
+                      pointer-events: none;
+                      z-index: 10;
+                    ">I2VEdit</div>
+                </div>
+                </div>
+                <div class="column is-6" style="padding-left: 0.05rem; padding-right: 0.05rem;">
+                  <div style="position: relative; height: 200px; overflow: hidden; border-radius: 15px;">
+                    <video autoplay muted loop playsinline style="
+                      width: 100%; 
+                      height: 100%;
+                      display: block;
+                      border-radius: 15px; 
+                      box-shadow: 0 8px 20px rgba(102, 126, 234, 0.2);
+                      object-fit: fill;
+                    ">
+                    <source src="static/videos/first_comp/ours/002_e3.mp4" type="video/mp4">
+                  </video>
+                    <div style="
+                      position: absolute; 
+                      top: 8px; 
+                      left: 50%; 
+                      transform: translateX(-50%); 
+                      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                      color: white; 
+                      padding: 6px 12px; 
+                      border-radius: 20px; 
+                      font-size: 0.8rem; 
+                      font-weight: bold; 
+                      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+                      pointer-events: none;
+                      z-index: 10;
+                    ">Ours</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="item">
+              
+              <div style="display: flex; justify-content: space-between; align-items: center; gap: 0; margin-bottom: 1.5rem;">
+                
+                <div style="
+                  position: relative; 
+                  width: 300px; 
+                  height: 300px; 
+                  flex: 0 0 300px; 
+                  overflow: hidden; 
+                  border-radius: 15px; 
+                  box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+                  transform: scale(1);
+                  transition: transform 0.3s ease;
+                " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                  <video autoplay muted loop playsinline style="
+                    width: 100% !important; 
+                    height: 100% !important;
+                    max-width: none !important;
+                    max-height: none !important;
+                    object-fit: fill !important;
+                    border-radius: 15px; 
+                    display: block !important;
+                    position: absolute !important;
+                    top: 0 !important;
+                    left: 0 !important;
+                  ">
+                    <source src="static/videos/first_comp/input/008_e4.mp4" type="video/mp4">
+                  </video>
+                  <div style="
+                    position: absolute; 
+                    top: 8px; 
+                    left: 50%; 
+                    transform: translateX(-50%); 
+                    background: rgba(0,0,0,0.7); 
+                    color: white; 
+                    padding: 4px 8px; 
+                    border-radius: 15px; 
+                    font-size: 0.7rem; 
+                    font-weight: bold; 
+                    pointer-events: none;
+                    white-space: nowrap;
+                  ">Source Video</div>
+                </div>
+
+                <div style="
+                  position: relative; 
+                  display: inline-block; 
+                  border-radius: 15px; 
+                  overflow: hidden; 
+                  box-shadow: 0 8px 25px rgba(0,0,0,0.2); 
+                  width: 300px;
+                  flex: 0 0 300px;
+                  transform: scale(1);
+                  transition: transform 0.3s ease;
+                " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                  <img src="static/videos/first_comp/first_frames/008_e4_first.png" style="
+                    width: 100%; 
+                    height: auto; 
+                    border-radius: 15px; 
+                    display: block;
+                  "/>
+                  <div style="
+                    position: absolute; 
+                    top: 8px; 
+                    left: 50%; 
+                    transform: translateX(-50%); 
+                    background: rgba(0,0,0,0.7); 
+                    color: white; 
+                    padding: 4px 8px; 
+                    border-radius: 15px; 
+                    font-size: 0.7rem; 
+                    font-weight: bold; 
+                    white-space: nowrap;
+                  ">First Frame</div>
+                </div>
+
+                <div style="
+                  font-size: 1.5rem; 
+                  color: #667eea; 
+                  font-weight: bold;
+                  text-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+                  animation: pulse 2s infinite;
+                  flex-shrink: 0;
+                  padding: 0 10px;
+                ">→</div>
+
+                <div style="
+                  position: relative; 
+                  display: inline-block; 
+                  border-radius: 15px; 
+                  overflow: hidden; 
+                  box-shadow: 0 8px 25px rgba(0,0,0,0.2); 
+                  width: 300px;
+                  flex: 0 0 300px;
+                  transform: scale(1);
+                  transition: transform 0.3s ease;
+                " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                  <img src="static/videos/first_comp/input/008_e4.png" style="
+                    width: 100%; 
+                    height: auto; 
+                    border-radius: 15px; 
+                    display: block;
+                  "/>
+                  <div style="
+                    position: absolute; 
+                    top: 8px; 
+                    left: 50%; 
+                    transform: translateX(-50%); 
+                    background: rgba(0,0,0,0.7); 
+                    color: white; 
+                    padding: 4px 8px; 
+                    border-radius: 15px; 
+                    font-size: 0.7rem; 
+                    font-weight: bold;
+                    white-space: nowrap;
+                  ">Edited Frame</div>
+                </div>
+              </div>
+
+              <div class="columns" style="margin-bottom: 0.25rem; margin-left: -0.75rem; margin-right: -0.75rem;">
+                <div class="column is-6" style="padding-left: 0.05rem; padding-right: 0.05rem;">
+                  <div style="position: relative; height: 200px; overflow: hidden; border-radius: 15px;">
+                    <video autoplay muted loop playsinline style="
+                      width: 100%; 
+                      height: 100%;
+                      display: block;
+                      border-radius: 15px; 
+                      box-shadow: 0 6px 15px rgba(0,0,0,0.1);
+                      object-fit: fill;
+                    ">
+                    <source src="static/videos/first_comp/anyv2v/008_e4.mp4" type="video/mp4">
+                  </video>
+                    <div style="
+                      position: absolute; 
+                      top: 8px; 
+                      left: 50%; 
+                      transform: translateX(-50%); 
+                      background: rgba(0,0,0,0.8); 
+                      color: white; 
+                      padding: 6px 12px; 
+                      border-radius: 20px; 
+                      font-size: 0.8rem; 
+                      font-weight: bold; 
+                      backdrop-filter: blur(4px);
+                      pointer-events: none;
+                      z-index: 10;
+                    ">AnyV2V</div>
+                </div>
+                </div>
+                <div class="column is-6" style="padding-left: 0.05rem; padding-right: 0.05rem;">
+                  <div style="position: relative; height: 200px; overflow: hidden; border-radius: 15px;">
+                    <video autoplay muted loop playsinline style="
+                      width: 100%; 
+                      height: 100%;
+                      display: block;
+                      border-radius: 15px; 
+                      box-shadow: 0 6px 15px rgba(0,0,0,0.1);
+                      object-fit: fill;
+                    ">
+                    <source src="static/videos/first_comp/goflow/008_e4.mp4" type="video/mp4">
+                  </video>
+                    <div style="
+                      position: absolute; 
+                      top: 8px; 
+                      left: 50%; 
+                      transform: translateX(-50%); 
+                      background: rgba(0,0,0,0.8); 
+                      color: white; 
+                      padding: 6px 12px; 
+                      border-radius: 20px; 
+                      font-size: 0.8rem; 
+                      font-weight: bold; 
+                      backdrop-filter: blur(4px);
+                      pointer-events: none;
+                      z-index: 10;
+                    ">Go-with-the-Flow</div>
+                </div>
+                </div>
+              </div>
+
+              <div class="columns" style="margin-left: -0.75rem; margin-right: -0.75rem;">
+                <div class="column is-6" style="padding-left: 0.05rem; padding-right: 0.05rem;">
+                  <div style="position: relative; height: 200px; overflow: hidden; border-radius: 15px;">
+                    <video autoplay muted loop playsinline style="
+                      width: 100%; 
+                      height: 100%;
+                      display: block;
+                      border-radius: 15px; 
+                      box-shadow: 0 6px 15px rgba(0,0,0,0.1);
+                      object-fit: fill;
+                    ">
+                    <source src="static/videos/first_comp/i2vedit/008_e4.mp4" type="video/mp4">
+                  </video>
+                    <div style="
+                      position: absolute; 
+                      top: 8px; 
+                      left: 50%; 
+                      transform: translateX(-50%); 
+                      background: rgba(0,0,0,0.8); 
+                      color: white; 
+                      padding: 6px 12px; 
+                      border-radius: 20px; 
+                      font-size: 0.8rem; 
+                      font-weight: bold; 
+                      backdrop-filter: blur(4px);
+                      pointer-events: none;
+                      z-index: 10;
+                    ">I2VEdit</div>
+                </div>
+                </div>
+                <div class="column is-6" style="padding-left: 0.05rem; padding-right: 0.05rem;">
+                  <div style="position: relative; height: 200px; overflow: hidden; border-radius: 15px;">
+                    <video autoplay muted loop playsinline style="
+                      width: 100%; 
+                      height: 100%;
+                      display: block;
+                      border-radius: 15px; 
+                      box-shadow: 0 8px 20px rgba(102, 126, 234, 0.2);
+                      object-fit: fill;
+                    ">
+                    <source src="static/videos/first_comp/ours/008_e4.mp4" type="video/mp4">
+                  </video>
+                    <div style="
+                      position: absolute; 
+                      top: 8px; 
+                      left: 50%; 
+                      transform: translateX(-50%); 
+                      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                      color: white; 
+                      padding: 6px 12px; 
+                      border-radius: 20px; 
+                      font-size: 0.8rem; 
+                      font-weight: bold; 
+                      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+                      pointer-events: none;
+                      z-index: 10;
+                    ">Ours</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          </div>
+          </div>
+          <div id="carousel-indicator-first-comp" class="has-text-centered mt-4" style="display: none;">1/3</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section section-white">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered">
+      <div class="column is-full">
+        <h2 class="title is-3">How does it work?</h2>
+
+        <div style="margin-bottom: 3rem;">
+          <h3 class="title is-4">Exploring Mask Configurations</h3>
+          <div class="content has-text-justified" style="margin-bottom: 2rem;">
+            <p>We explore different mask configurations as input conditions to the image-to-video model. Left: Input conditions including mask and pseudo-video. Right: Video generation results under different mask configurations. From top to bottom, we explore four different cases: Default case uses a default mask preserving only the first frame. Case 1 uses no input condition (text-to-video). Case 2 uses the entire video without masking, resulting in artifacts. Case 3 masks the foreground, which also fails.</p>
+          </div>
+          
+          <div class="has-text-centered" style="margin: 2rem 0;">
+            <img src="static/images/method1.png" alt="Mask Configuration Exploration" style="
+              max-width: 100%;
+              height: auto;
+            "/>
+          </div>
+        </div>
+
+        <div style="margin-bottom: 3rem;">
+          <h3 class="title is-4">Our Approach</h3>
+          <div class="content has-text-justified" style="margin-bottom: 2rem;">
+            <p>Building on this exploration, we modify the spatiotemporal mask to enable more flexible video edits. Combined with LoRA fine-tuning, the mask serves two roles: it improves the I2V model's alignment with mask constraints, allowing flexible control over which regions are edited or preserved; and it acts as a signal guiding LoRA to learn specific patterns from training data. By configuring the condition video, mask, and target video in different ways, we enable flexible video editing through LoRA.</p>
+          </div>
+          
+          <div class="has-text-centered" style="margin: 2rem 0;">
+            <img src="static/images/method2.png" alt="Our Method" style="
+              max-width: 100%;
+              height: auto;
+            "/>
+          </div>
+        </div>
+        
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section section-white" id="BibTeX">
+  <div class="container is-max-desktop content">
+    <h2 class="title">BibTeX</h2>
+    <pre><code>@article{loraedit2025,
+      author    = {Chenjian Gao and Lihe Ding and Xin Cai and Zhanpeng Huang and Zibin Wang and Tianfan Xue},
+      title     = {LoRA-Edit: Controllable First-Frame-Guided Video Editing via Mask-Aware LoRA Fine-Tuning},
+      journal   = {arXiv preprint},
+      year      = {2025},
+}
+  </code></pre>
+  </div>
+</section>
+
+</body>
+
+<footer class="footer section-light-gray">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered">
+      <div class="column is-8">
+        <div class="content has-text-left">
+          <p>
+            This page was built using the <a href="https://github.com/nerfies/nerfies.github.io" target="_blank">Academic Project Page Template</a> which was adopted from the <a href="https://nerfies.github.io/" target="_blank">Nerfies</a> project page. 
+            You are free to borrow the source of this website, we just ask that you link back to this page in the footer.
+          </p>
+          <p>
+            This website is licensed under a <a href="http://creativecommons.org/licenses/by-sa/4.0/" target="_blank">Creative Commons Attribution-ShareAlike 4.0 International License</a>.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</footer>
+
+</html>
